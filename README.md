@@ -1,5 +1,9 @@
 # LEAF: A Benchmark for Federated Settings
 
+## TODO: Gradient compression and gradient quantization from [grace](https://github.com/sands-lab/grace)
+## TODO: Add MNIST and some pytorch implementations
+
+
 ## Resources
 
   * **Homepage:** [leaf.cmu.edu](https://leaf.cmu.edu)
@@ -50,3 +54,4 @@
 - Go to directory of respective dataset for instructions on generating data
     - in MacOS check if ```wget``` is installed and working
 - ```models``` directory contains instructions on running baseline reference implementations
+
