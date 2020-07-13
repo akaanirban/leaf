@@ -1,11 +1,12 @@
 import random
 import warnings
+import copy
 
 
 class Client(object):
     
     def __init__(self, client_id, group=None, train_data={'x' : [],'y' : []}, eval_data={'x' : [],'y' : []}, model=None):
-        self._model = model
+        self._model = copy.deepcopy(model)
         self.id = client_id
         self.group = group
         self.train_data = train_data

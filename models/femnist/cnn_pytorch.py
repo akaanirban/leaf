@@ -35,7 +35,59 @@ class Net(nn.Module):
         inp = self.fc2(inp)
         return inp
 
+class Net3(nn.Module):
+    def __init__(self, num_classes):
+        super(Net, self).__init__()
 
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(1, 10, kernel_size=5),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            nn.Conv2d(10, 20, kernel_size=5),
+            nn.Dropout(),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+        )
+        self.fc_layers = nn.Sequential(
+            nn.Linear(320, 50),
+            nn.ReLU(),
+            nn.Dropout(),
+            nn.Linear(50, num_classes),
+            #nn.Softmax(dim=1)
+        )
+
+    def forward(self, x):
+        x = x.reshape(-1, 1, 28, 28)
+        x = self.conv_layers(x)
+        x = x.view(-1, 320)
+        x = self.fc_layers(x)
+        return x
+
+class Net2(nn.Module):
+    def __init__(self, num_classes):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout2d(0.25)
+        self.dropout2 = nn.Dropout2d(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, num_classes)
+
+    def forward(self, x):
+        x = x.reshape(-1, 1, 28, 28)
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        #output = F.log_softmax(x, dim=1)
+        return x
 """
 torch.Size([1, 32, 14, 14])
 torch.Size([1, 64, 7, 7])
@@ -64,6 +116,7 @@ Mult-Adds             17.105408M
 class ClientModel(Model):
     def __init__(self, seed, lr, num_classes):
         self.num_classes = num_classes
+        print(self, seed)
         super(ClientModel, self).__init__(seed, lr)
 
     def create_model(self, lr, momentum=0):

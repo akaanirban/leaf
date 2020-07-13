@@ -5,6 +5,8 @@ from typing import Any
 import torch
 import copy
 from tqdm import tqdm
+
+
 # from utils.pytorch_modelsize import SizeEstimator
 
 
@@ -17,7 +19,6 @@ class Server(object):
         self.updates = []
         # self.se = SizeEstimator(self.client_model.net, input_size=(10, 784))
         # self.se.estimate_size()
-
 
     def select_clients(self, my_round, possible_clients, num_clients=20):
         """Selects num_clients clients randomly from possible_clients.
@@ -68,10 +69,9 @@ class Server(object):
             c.model.set_params(self.model)  # sets the servers model in the clients
             comp, num_samples, update = c.train(num_epochs, batch_size, minibatch)
 
-            sys_metrics[c.id][BYTES_READ_KEY] += 1# self.se.param_bits
-            sys_metrics[c.id][BYTES_WRITTEN_KEY] += 1# self.se.param_bits
+            sys_metrics[c.id][BYTES_READ_KEY] += 1  # self.se.param_bits
+            sys_metrics[c.id][BYTES_WRITTEN_KEY] += 1  # self.se.param_bits
             sys_metrics[c.id][LOCAL_COMPUTATIONS_KEY] = comp
-
             self.updates.append((num_samples, update))
 
         return sys_metrics
