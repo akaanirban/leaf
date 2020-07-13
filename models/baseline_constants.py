@@ -7,7 +7,7 @@ MAIN_PARAMS = {
         'large': (24, 2, 2)
         },
     'femnist': {
-        'small': (30, 10, 2),
+        'small': (30, 2, 2),
         'medium': (100, 10, 2),
         'large': (400, 20, 2)
         },
@@ -39,6 +39,7 @@ MODEL_PARAMS = {
     'sent140.stacked_lstm': (0.0003, 25, 2, 100), # lr, seq_len, num_classes, num_hidden
     'sent140.bag_log_reg': (0.0003, 2), # lr, num_classes
     'femnist.cnn': (0.0003, 62), # lr, num_classes
+    'femnist.cnn_pytorch': (0.0003, 62), # lr, num_classes
     'shakespeare.stacked_lstm': (0.0003, 80, 80, 256), # lr, seq_len, num_classes, num_hidden
     'celeba.cnn': (0.1, 2), # lr, num_classes
     'synthetic.log_reg': (0.0003, 5, 60), # lr, num_classes, input_dim

@@ -1,15 +1,21 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Jul 7/12/20 3:15 PM 2020
+
+@author: Anirban Das
+"""
+
 """Interfaces for ClientModel and ServerModel."""
 
 from abc import ABC, abstractmethod
 import numpy as np
-import os
-import sys
-import tensorflow as tf
-
+import torch
 from baseline_constants import ACCURACY_KEY
-
+import copy
 from utils.model_utils import batch_data
 from utils.tf_utils import graph_size
+from thop import profile
 
 
 class Model(ABC):
@@ -18,43 +24,40 @@ class Model(ABC):
         self.lr = lr
         self.seed = seed
         self._optimizer = optimizer
-        self.anirban = None
-
-        self.graph = tf.Graph()
-        with self.graph.as_default():
-            tf.set_random_seed(123 + self.seed)
-            self.features, self.labels, self.train_op, self.eval_metric_ops, self.loss, self.mmmmm, self.outputs, self.pred = self.create_model()
-            self.saver = tf.train.Saver()
-        self.sess = tf.Session(graph=self.graph)
-
-        self.size = graph_size(self.graph)
-
-        with self.graph.as_default():
-            self.sess.run(tf.global_variables_initializer())
-
-            metadata = tf.RunMetadata()
-            opts = tf.profiler.ProfileOptionBuilder.float_operation()
-            self.flops = tf.profiler.profile(self.graph, run_meta=metadata, cmd='scope', options=opts).total_float_ops
-
+        self.net, self.criterion, self._optimizer = self.create_model(self.lr, momentum=0)
+        torch.manual_seed(123 + self.seed)
         np.random.seed(self.seed)
+        # https://github.com/sovrasov/flops-counter.pytorch/issues/16
+        macs, params = profile(self.net, inputs=torch.rand(1, 1, 1, 28, 28))
+        self.flops = macs*2
 
-    def set_params(self, model_params):
-        with self.graph.as_default():
-            all_vars = tf.trainable_variables()
-            for variable, value in zip(all_vars, model_params):
-                variable.load(value, self.sess)
+    # def set_params(self, model_params):
+    #     with self.graph.as_default():
+    #         all_vars = tf.trainable_variables()
+    #         for variable, value in zip(all_vars, model_params):
+    #             variable.load(value, self.sess)
+
+    # def copyParams(module_src, module_dest):
+    #     params_src = module_src.named_parameters()
+    #     params_dest = module_dest.named_parameters()
+    #
+    #     dict_dest = dict(params_dest)
+    #
+    #     for name, param in params_src:
+    #         if name in dict_dest:
+    #             dict_dest[name].data.copy_(param.data)
+
+    def set_params(self, model):
+        self.net = copy.deepcopy(model)
 
     def get_params(self):
-        with self.graph.as_default():
-            model_params = self.sess.run(tf.trainable_variables())
-        return model_params
+        return copy.deepcopy(self.net)
 
     @property
     def optimizer(self):
         """Optimizer to be used by the model."""
         if self._optimizer is None:
-            self._optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.lr)
-
+            self._optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=0)
         return self._optimizer
 
     @abstractmethod
@@ -62,15 +65,12 @@ class Model(ABC):
         """Creates the model for the task.
 
         Returns:
-            A 4-tuple consisting of:
-                features: A placeholder for the samples' features.
-                labels: A placeholder for the samples' labels.
-                train_op: A Tensorflow operation that, when run with the features and
-                    the labels, trains the model.
-                eval_metric_ops: A Tensorflow operation that, when run with features and labels,
-                    returns the accuracy of the model.
+            A 3-tuple consisting of:
+                net: The neural network instantiated
+                criterion: The training loss criterion
+                optimizer: The training optimizer
         """
-        return None, None, None, None, None
+        return None, None, None
 
     def train(self, data, num_epochs=1, batch_size=10):
         """
@@ -82,43 +82,27 @@ class Model(ABC):
             batch_size: Size of training batches.
         Return:
             comp: Number of FLOPs computed while training given data
-            update: List of np.ndarray weights, with each weight array
-                corresponding to a variable in the resulting graph
+            update: List of tensors which are parameters of the network or the weights
         """
         for _ in range(num_epochs):
-            self.run_epoch(data, batch_size)
+            loss = self.run_epoch(data, batch_size)
 
         update = self.get_params()
-        comp = num_epochs * (len(data['y'])//batch_size) * batch_size * self.flops
+        comp = num_epochs * (len(data['y']) // batch_size) * batch_size * self.flops
         return comp, update
 
     def run_epoch(self, data, batch_size):
-
+        running_loss = 0
         for batched_x, batched_y in batch_data(data, batch_size, seed=self.seed):
-            
             input_data = self.process_x(batched_x)
             target_data = self.process_y(batched_y)
-            
-            with self.graph.as_default():
-                self.sess.run(self.train_op,
-                    feed_dict={
-                        self.features: input_data,
-                        self.labels: target_data
-                    })
-            print("sssssssssss\n\n\n", self.features)
-            print("*********\n\n", self.sess.run(self.outputs, feed_dict={
-                        self.features: input_data,
-                        self.labels: target_data
-                    })[:, :,:].shape)
-            predictions = self.sess.run(self.pred, feed_dict={
-                self.features: input_data,
-                self.labels: target_data
-            })
-            print("*****PREDICTIONS****\n\n", batched_x[0], self.softmax(predictions[0]), target_data[1], batched_y)
-            self.anirban = self.sess.run(tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits_v2(logits=predictions, labels=target_data)))
-            print("*****LOSS****\n\n", predictions, self.anirban)
-            #print("ttttttttttt\n\n\n", self.mmmmm(tf.get_variable("embedding"), input_data))
+            self._optimizer.zero_grad()
+            self.outputs = self.net(input_data)
+            loss = self.criterion(self.outputs, target_data)
+            loss.backward()
+            self.optimizer.step()
+            running_loss += loss
+        return running_loss
 
     def softmax(self, X):
         exps = np.exp(X)
@@ -151,16 +135,15 @@ class Model(ABC):
         """
         x_vecs = self.process_x(data['x'])
         labels = self.process_y(data['y'])
-        #print("test x values",x_vecs[1:10], x_vecs.shape)
-        #print("test labels",labels[1:10], len(labels))
-        with self.graph.as_default():
-            tot_acc, loss = self.sess.run(
-                [self.eval_metric_ops, self.loss],
-                feed_dict={self.features: x_vecs, self.labels: labels}
-            )
-        acc = float(tot_acc) / x_vecs.shape[0]
-        print("----------------------------", acc, tot_acc)
-        return {ACCURACY_KEY: acc, 'loss': loss}
+        # print("test x values",x_vecs[1:10], x_vecs.shape)
+        # print("test labels",labels[1:10], len(labels))
+        self.net.eval()
+        outputs = self.net(x_vecs)
+        predicted = torch.argmax(outputs, axis=1)
+        loss = self.criterion(outputs, labels)
+        correct = predicted.eq(labels).sum().item()
+
+        return {ACCURACY_KEY: correct/labels.shape[0], 'loss': loss}
 
     def close(self):
         self.sess.close()
@@ -168,12 +151,12 @@ class Model(ABC):
     @abstractmethod
     def process_x(self, raw_x_batch):
         """Pre-processes each batch of features before being fed to the model."""
-        pass
+        return torch.tensor(raw_x_batch)
 
     @abstractmethod
     def process_y(self, raw_y_batch):
         """Pre-processes each batch of labels before being fed to the model."""
-        pass
+        return torch.tensor(raw_y_batch)
 
 
 class ServerModel:
