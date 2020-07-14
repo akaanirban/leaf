@@ -35,7 +35,6 @@ class Net(nn.Module):
         inp = self.fc2(inp)
         return inp
 
-
 """
 torch.Size([1, 32, 14, 14])
 torch.Size([1, 64, 7, 7])
@@ -64,6 +63,7 @@ Mult-Adds             17.105408M
 class ClientModel(Model):
     def __init__(self, seed, lr, num_classes):
         self.num_classes = num_classes
+        print(self, seed)
         super(ClientModel, self).__init__(seed, lr)
 
     def create_model(self, lr, momentum=0):

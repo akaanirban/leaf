@@ -14,7 +14,7 @@ import torch
 from baseline_constants import ACCURACY_KEY
 import copy
 from utils.model_utils import batch_data
-from utils.tf_utils import graph_size
+# from utils.tf_utils import graph_size
 from thop import profile
 
 
@@ -29,7 +29,7 @@ class Model(ABC):
         np.random.seed(self.seed)
         # https://github.com/sovrasov/flops-counter.pytorch/issues/16
         macs, params = profile(self.net, inputs=torch.rand(1, 1, 1, 28, 28))
-        self.flops = macs*2
+        self.flops = macs * 2
 
     # def set_params(self, model_params):
     #     with self.graph.as_default():
@@ -49,6 +49,7 @@ class Model(ABC):
 
     def set_params(self, model):
         self.net = copy.deepcopy(model)
+        self._optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=0)
 
     def get_params(self):
         return copy.deepcopy(self.net)
@@ -84,25 +85,32 @@ class Model(ABC):
             comp: Number of FLOPs computed while training given data
             update: List of tensors which are parameters of the network or the weights
         """
+        total_loss = 0
         for _ in range(num_epochs):
             loss = self.run_epoch(data, batch_size)
-
-        update = self.get_params()
+            total_loss += loss
+            # print(f"Client {self} : Avg loss: {loss}, {total_loss/num_epochs}")
+        update = self.get_params().state_dict()
         comp = num_epochs * (len(data['y']) // batch_size) * batch_size * self.flops
         return comp, update
 
     def run_epoch(self, data, batch_size):
         running_loss = 0
+        count = 1
+        self.net.train()
         for batched_x, batched_y in batch_data(data, batch_size, seed=self.seed):
-            input_data = self.process_x(batched_x)
-            target_data = self.process_y(batched_y)
+            self.net.to("cuda:0")
+            input_data = self.process_x(batched_x).to("cuda:0")
+            target_data = self.process_y(batched_y).to("cuda:0")
             self._optimizer.zero_grad()
             self.outputs = self.net(input_data)
             loss = self.criterion(self.outputs, target_data)
             loss.backward()
-            self.optimizer.step()
+            self._optimizer.step()
             running_loss += loss
-        return running_loss
+            count += 1
+        self.net.to("cpu")  # just to save gpu memory
+        return running_loss / count
 
     def softmax(self, X):
         exps = np.exp(X)
@@ -124,7 +132,7 @@ class Model(ABC):
         loss = np.sum(log_likelihood) / m
         return loss
 
-    def test(self, data):
+    def test(self, data, batch_size=50):
         """
         Tests the current model on the given data.
 
@@ -133,17 +141,25 @@ class Model(ABC):
         Return:
             dict of metrics that will be recorded by the simulation.
         """
-        x_vecs = self.process_x(data['x'])
-        labels = self.process_y(data['y'])
-        # print("test x values",x_vecs[1:10], x_vecs.shape)
-        # print("test labels",labels[1:10], len(labels))
+        """Well, in my case, used with torch.no_grad(): (train model), output.to("cpu") and torch.cuda.empty_cache() and this problem solved."""
+        total_loss = 0
+        acc = 0
+        counter = 1
+        samples = 0
         self.net.eval()
-        outputs = self.net(x_vecs)
-        predicted = torch.argmax(outputs, axis=1)
-        loss = self.criterion(outputs, labels)
-        correct = predicted.eq(labels).sum().item()
+        with torch.no_grad():
+            self.net.cuda()
+            x_vecs = self.process_x(data['x']).to("cuda:0")
+            labels = self.process_y(data['y']).to("cuda:0")
+            outputs = self.net(x_vecs)
+            predicted = torch.argmax(outputs, axis=1)
+            loss = self.criterion(outputs, labels).to("cpu")
+            correct = predicted.eq(labels).sum().to("cpu")
+            acc += correct.item()
+            total_loss += loss.item()
+            samples = labels.shape[0]
 
-        return {ACCURACY_KEY: correct/labels.shape[0], 'loss': loss}
+        return {ACCURACY_KEY: acc / samples, 'loss': total_loss / counter}
 
     def close(self):
         self.sess.close()

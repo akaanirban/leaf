@@ -5,6 +5,8 @@ from typing import Any
 import torch
 import copy
 from tqdm import tqdm
+
+
 # from utils.pytorch_modelsize import SizeEstimator
 
 
@@ -17,7 +19,6 @@ class Server(object):
         self.updates = []
         # self.se = SizeEstimator(self.client_model.net, input_size=(10, 784))
         # self.se.estimate_size()
-
 
     def select_clients(self, my_round, possible_clients, num_clients=20):
         """Selects num_clients clients randomly from possible_clients.
@@ -68,32 +69,26 @@ class Server(object):
             c.model.set_params(self.model)  # sets the servers model in the clients
             comp, num_samples, update = c.train(num_epochs, batch_size, minibatch)
 
-            sys_metrics[c.id][BYTES_READ_KEY] += 1# self.se.param_bits
-            sys_metrics[c.id][BYTES_WRITTEN_KEY] += 1# self.se.param_bits
+            sys_metrics[c.id][BYTES_READ_KEY] += 1  # self.se.param_bits
+            sys_metrics[c.id][BYTES_WRITTEN_KEY] += 1  # self.se.param_bits
             sys_metrics[c.id][LOCAL_COMPUTATIONS_KEY] = comp
-
             self.updates.append((num_samples, update))
 
         return sys_metrics
 
-    def update_model(self):
-        model = copy.deepcopy(self.updates[0][1])
-        dict_params = dict(model.named_parameters())
-        tuples = [(i, dict(j.named_parameters())) for i, j in self.updates]
-        total_samples = sum([i[0] for i in tuples])
-
+    def update_model(self):  # --> This is where it went wrong probably
+        first_sample = self.updates[0]
+        w_avg = copy.deepcopy(first_sample[1])
+        total_samples = sum([i[0] for i in self.updates])
         with torch.no_grad():
-            for k in dict_params.keys():
-                dict_params[k].set_(dict_params[k].data * tuples[0][0])
-
-        with torch.no_grad():
-            for k in dict_params.keys():
-                for i in range(1, len(tuples)):
-                    dict_params[k].set_(dict_params[k] + tuples[i][1][k].data * tuples[i][0])
-                dict_params[k].set_(dict_params[k].data / total_samples)
-        self.model = copy.deepcopy(model)
+            for key in w_avg:
+                w_avg[key] = w_avg[key] * first_sample[0]
+        for k in w_avg.keys():
+            for i in range(1, len(self.updates)):
+                w_avg[k] += self.updates[i][1][k] * self.updates[i][0]
+            w_avg[k] = torch.div(w_avg[k], total_samples)
         self.updates = []
-        return model
+        self.model.load_state_dict(w_avg)
 
     def update_modelold(self):
         total_weight = 0.

@@ -64,9 +64,6 @@ def main():
     client_ids, client_groups, client_num_samples = server.get_clients_info(clients)
     print('Clients in Total: %d' % len(clients))
 
-    # print(clients[0].train_data['x'][1:10], clients[0].id)
-    # print(clients[0].eval_data['x'][1:10], clients[0].id)
-    # sys.exit()
     # Initial status
     print('--- Random Initialization ---')
     stat_writer_fn = get_stat_writer_function(client_ids, client_groups, client_num_samples, args)
@@ -88,13 +85,14 @@ def main():
 
         # Update server model
         server.update_model()
+
         # TODO
         # server.compress_model()
 
         # Test model
         if (i + 1) % eval_every == 0 or (i + 1) == num_rounds:
             print_stats(i + 1, server, clients, client_num_samples, args, stat_writer_fn, args.use_val_set)
-        #sys.exit()
+
     # Save server model
     ckpt_path = os.path.join('checkpoints', args.dataset)
     if not os.path.exists(ckpt_path):

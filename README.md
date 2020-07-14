@@ -1,7 +1,9 @@
 # LEAF: A Benchmark for Federated Settings
 
-## TODO: Gradient compression and gradient quantization from [grace](https://github.com/sands-lab/grace)
-## TODO: Add MNIST and some pytorch implementations
+### Added PyTorch Extensions that works with Femnist. All relevant files have extension `*_pytorch.py`
+#### Execute the `femnist-sh` script from paper_experiments to create the noniid data division which has been used in the paper. To run PyTorch version, execute `leaf/experiments/femnist.sh`.
+### TODO: Gradient compression and gradient quantization from [Grace](https://github.com/sands-lab/grace)
+### TODO: Convert the other Experiments into pytorch as well.
 
 
 ## Resources
