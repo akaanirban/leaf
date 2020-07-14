@@ -37,15 +37,6 @@ class Model(ABC):
     #         for variable, value in zip(all_vars, model_params):
     #             variable.load(value, self.sess)
 
-    # def copyParams(module_src, module_dest):
-    #     params_src = module_src.named_parameters()
-    #     params_dest = module_dest.named_parameters()
-    #
-    #     dict_dest = dict(params_dest)
-    #
-    #     for name, param in params_src:
-    #         if name in dict_dest:
-    #             dict_dest[name].data.copy_(param.data)
 
     def set_params(self, model):
         self.net = copy.deepcopy(model)
