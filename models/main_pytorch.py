@@ -63,7 +63,6 @@ def main():
     clients = setup_clients(args.dataset, client_model, args.use_val_set)
     client_ids, client_groups, client_num_samples = server.get_clients_info(clients)
     print('Clients in Total: %d' % len(clients))
-    print("Client group:", [(c.id, len(c.train_data['x'])) for c in clients])
 
     # Initial status
     print('--- Random Initialization ---')
@@ -86,6 +85,7 @@ def main():
 
         # Update server model
         server.update_model()
+
         # TODO
         # server.compress_model()
 

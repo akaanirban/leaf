@@ -29,7 +29,7 @@ class Model(ABC):
         np.random.seed(self.seed)
         # https://github.com/sovrasov/flops-counter.pytorch/issues/16
         macs, params = profile(self.net, inputs=torch.rand(1, 1, 1, 28, 28))
-        self.flops = macs*2
+        self.flops = macs * 2
 
     # def set_params(self, model_params):
     #     with self.graph.as_default():
@@ -49,6 +49,7 @@ class Model(ABC):
 
     def set_params(self, model):
         self.net = copy.deepcopy(model)
+        self._optimizer = torch.optim.SGD(self.net.parameters(), lr=self.lr, momentum=0)
 
     def get_params(self):
         return copy.deepcopy(self.net)
@@ -85,17 +86,18 @@ class Model(ABC):
             update: List of tensors which are parameters of the network or the weights
         """
         total_loss = 0
-        for _ in range(10):
+        for _ in range(num_epochs):
             loss = self.run_epoch(data, batch_size)
-            total_loss+=loss
-            print(f"Client {self} : Avg loss: {loss}, {total_loss/num_epochs}")
-        update = self.get_params()
+            total_loss += loss
+            # print(f"Client {self} : Avg loss: {loss}, {total_loss/num_epochs}")
+        update = self.get_params().state_dict()
         comp = num_epochs * (len(data['y']) // batch_size) * batch_size * self.flops
         return comp, update
 
     def run_epoch(self, data, batch_size):
         running_loss = 0
         count = 1
+        self.net.train()
         for batched_x, batched_y in batch_data(data, batch_size, seed=self.seed):
             self.net.to("cuda:0")
             input_data = self.process_x(batched_x).to("cuda:0")
@@ -106,9 +108,9 @@ class Model(ABC):
             loss.backward()
             self._optimizer.step()
             running_loss += loss
-            count +=1
-        self.net.to("cpu") # just to save gpu memory
-        return running_loss/count
+            count += 1
+        self.net.to("cpu")  # just to save gpu memory
+        return running_loss / count
 
     def softmax(self, X):
         exps = np.exp(X)
@@ -144,24 +146,8 @@ class Model(ABC):
         acc = 0
         counter = 1
         samples = 0
+        self.net.eval()
         with torch.no_grad():
-            # for batched_x, batched_y in batch_data(data, batch_size, seed=self.seed):
-            #     self.net.cuda()
-            #     x_vecs = self.process_x(batched_x).cuda()
-            #     labels = self.process_y(batched_y).cuda()
-            #     #x_vecs = self.process_x(data['x']).to("cuda:0")
-            #     #labels = self.process_y(data['y']).to("cuda:0")
-            #     # print("test x values",x_vecs[1:10], x_vecs.shape)
-            #     # print("test labels",labels[1:10], len(labels))
-            #     outputs = self.net(x_vecs)
-            #     predicted = torch.argmax(outputs, axis=1)
-            #     loss = self.criterion(outputs, labels).to("cpu")
-            #     correct = predicted.eq(labels).sum().to("cpu")
-            #     # print(correct, x_vecs.shape)
-            #     acc += correct.item()
-            #     total_loss += loss.item()
-            #     counter += 1
-            #     samples += labels.shape[0]
             self.net.cuda()
             x_vecs = self.process_x(data['x']).to("cuda:0")
             labels = self.process_y(data['y']).to("cuda:0")
@@ -173,7 +159,7 @@ class Model(ABC):
             total_loss += loss.item()
             samples = labels.shape[0]
 
-        return {ACCURACY_KEY: acc/samples, 'loss': total_loss/counter}
+        return {ACCURACY_KEY: acc / samples, 'loss': total_loss / counter}
 
     def close(self):
         self.sess.close()

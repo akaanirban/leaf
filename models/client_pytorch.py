@@ -28,7 +28,7 @@ class Client(object):
         """
         if minibatch is None:
             data = self.train_data
-            comp, update = self.model.train(data, num_epochs, batch_size)
+            comp, update = self._model.train(data, num_epochs, batch_size)
         else:
             frac = min(1.0, minibatch)
             num_data = max(1, int(frac*len(self.train_data["x"])))
@@ -37,7 +37,7 @@ class Client(object):
 
             # Minibatch trains for only 1 epoch - multiple local epochs don't make sense!
             num_epochs = 1
-            comp, update = self.model.train(data, num_epochs, num_data)
+            comp, update = self._model.train(data, num_epochs, num_data)
         num_train_samples = len(data['y'])
         return comp, num_train_samples, update
 
@@ -54,7 +54,7 @@ class Client(object):
             data = self.train_data
         elif set_to_use == 'test' or set_to_use == 'val':
             data = self.eval_data
-        return self.model.test(data)
+        return self._model.test(data)
 
     @property
     def num_test_samples(self):

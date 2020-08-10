@@ -76,24 +76,19 @@ class Server(object):
 
         return sys_metrics
 
-    def update_model(self):
-        model = copy.deepcopy(self.updates[0][1])
-        dict_params = dict(model.named_parameters())
-        tuples = [(i, dict(j.named_parameters())) for i, j in self.updates]
-        total_samples = sum([i[0] for i in tuples])
-
+    def update_model(self):  # --> This is where it went wrong probably
+        first_sample = self.updates[0]
+        w_avg = copy.deepcopy(first_sample[1])
+        total_samples = sum([i[0] for i in self.updates])
         with torch.no_grad():
-            for k in dict_params.keys():
-                dict_params[k].set_(dict_params[k].data * tuples[0][0])
-
-        with torch.no_grad():
-            for k in dict_params.keys():
-                for i in range(1, len(tuples)):
-                    dict_params[k].set_(dict_params[k] + tuples[i][1][k].data * tuples[i][0])
-                dict_params[k].set_(dict_params[k].data / total_samples)
-        self.model = copy.deepcopy(model)
+            for key in w_avg:
+                w_avg[key] = w_avg[key] * first_sample[0]
+        for k in w_avg.keys():
+            for i in range(1, len(self.updates)):
+                w_avg[k] += self.updates[i][1][k] * self.updates[i][0]
+            w_avg[k] = torch.div(w_avg[k], total_samples)
         self.updates = []
-        return model
+        self.model.load_state_dict(w_avg)
 
     def update_modelold(self):
         total_weight = 0.
