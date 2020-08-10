@@ -140,11 +140,12 @@ class Server(object):
         return ids, groups, num_samples
 
     def save_model(self, path):
-        """Saves the server model on checkpoints/dataset/model.ckpt."""
+        """Saves the server model on checkpoints/dataset/model.pth."""
         # Save server model
         self.client_model.set_params(self.model)
-        model_sess = self.client_model.sess
-        return self.client_model.saver.save(model_sess, path)
+        torch.save(self.model.state_dict(), path)
+        return path
 
     def close_model(self):
-        self.client_model.close()
+        # self.client_model.close()
+        pass
